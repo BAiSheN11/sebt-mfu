@@ -1,14 +1,19 @@
-# SEBT 2D Top-Down Pose Tester
+# SEBT.mfu
 
-A simple web tool that demonstrates the limitations of 2D top-down pose estimation
-for SEBT (Star Excursion Balance Test) evaluation.
+AI-powered **Star Excursion Balance Test** video analysis tool — 3D reach measurement, Kalman-filter occlusion handling, floor-contact classification, and population-normative comparison.
 
-## What it does
+Built for the Gait & Balance Research Lab at Mae Fah Luang University.
 
-1. Upload a top-down video
-2. MediaPipe BlazePose runs locally in your browser
-3. See which body keypoints are detected (green) vs missing (red)
-4. Understand the three key flaws of 2D overhead pose estimation for SEBT
+## Features
+
+- **3D reach measurement** — MediaPipe world landmarks (meters), horizontal floor-plane distance normalized to 3D stance-leg length
+- **Kalman filter + kinematic chain** — adaptive 2D/3D Kalman tracking with rigid-foot toe estimation during occlusion; velocity-aware prediction and re-acquisition blending
+- **Floor-contact detection** — state machine classifies soft / moderate / hard touch via impact velocity and bounce
+- **8-direction scoring** — reach (35%), balance (25%), contact quality (20%), form/posture (20%) with PASS/FAIL
+- **Normative comparison** — UCD YBT dataset (407 subjects, 7,262 trials) with z-scores, percentiles, and clinical bands
+- **Measurement quality panel** — per-direction confidence, max occlusion streak, re-record recommendations
+- **Export** — CSV report, JSON data, printable report
+- **Privacy-first** — all processing runs in-browser via WebAssembly; no video leaves the device
 
 ## Quick start
 
@@ -16,31 +21,14 @@ for SEBT (Star Excursion Balance Test) evaluation.
 - Node.js >= 18
 - npm >= 9
 
-### Run in VS Code
-
-1. Open the project folder in VS Code (**File → Open Folder**)
-2. Open the terminal (**Terminal → New Terminal**)
-3. Install dependencies:
+### Run locally
 
 ```bash
 npm install
-```
-
-4. Start the dev server:
-
-```bash
 npm run dev
 ```
 
-5. Open `http://localhost:8001` in your browser. The custom dev launcher uses port 8001.
-
-### Run the desktop version (Electron)
-
-```bash
-npm run electron:dev
-```
-
-This starts Vite and opens the Electron desktop window automatically.
+Open the URL shown in the terminal (Vite default or port 8001 with the Lark preset).
 
 ### Build for production
 
@@ -50,65 +38,55 @@ npm run build
 
 Output goes to `dist/`.
 
----
+## How to record a valid test
 
-## How it works
+1. **3/4 oblique view** — camera at 45° between front and side (not straight front)
+2. **Height 1.2–1.5 m**, tilted 30–45° downward
+3. **Distance 3–4 m** — full body + all reaches visible
+4. **Even lighting**, no backlight, feet clearly visible
+5. If directions appear reversed, enable **Flip A/P** in Session Information
 
-The tool uses **MediaPipe BlazePose Lite** running entirely in the browser via
-WebAssembly + WebGL. No video data leaves your device.
+## Measurement pipeline
 
-### The three flaws
-
-1. **Self-Occlusion** — The torso blocks the camera's view of lower body parts.
-   Ankles and knees frequently disappear when the body is between the overhead
-   camera and the feet.
-
-2. **Z-Axis Blindness** — A 2D top-down camera cannot detect vertical (Z-axis)
-   motion. Heel raises, knee flexion depth, and weight shifts are completely
-   invisible.
-
-3. **Foreshortening** — Perspective projection compresses distances based on
-   body height and limb angle. Pixel measurements cannot reliably be converted
-   to real centimeter distances.
-
----
+1. BlazePose detects 33 landmarks (heavy model)
+2. One-Euro filter smooths 2D image and 3D world landmarks
+3. Stance foot auto-detected via 45-frame ankle variance
+4. 3D leg length and stance ankle origin calibrated (median, locked)
+5. Toe tracked via Kalman filter; kinematic chain estimates during occlusion
+6. Reach = horizontal 3D distance / leg length, projected onto direction axis
+7. Peak reach = trimmed mean of contact frames (top/bottom 20% discarded)
+8. Floor contact classified by descent velocity and post-contact bounce
 
 ## Tech stack
 
-- React 19 + TypeScript
-- Vite
-- MediaPipe Tasks Vision (BlazePose)
-- Tailwind CSS
+- React 19 + TypeScript + Vite
+- MediaPipe Tasks Vision (BlazePose Heavy)
+- Tailwind CSS + Framer Motion
 - Lucide icons
-
----
 
 ## Project structure
 
 ```
-.
-├── public/
-│   └── models/
-│       └── pose_landmarker_lite.task   # Pose model (5.6MB)
+├── public/models/              # BlazePose model files (lite/full/heavy)
 ├── src/
-│   ├── pages/
-│   │   └── SimpleSebtPage/
-│   │       └── SimpleSebtPage.tsx       # Main page
-│   ├── app.tsx
-│   ├── index.tsx
-│   ├── index.css
-│   └── tailwind-theme.css
-├── package.json
+│   ├── pages/SimpleSebtPage/
+│   │   └── SimpleSebtPage.tsx  # Main application
+│   ├── utils/
+│   │   ├── foot-tracker.ts     # Kalman filter + kinematic chain
+│   │   └── one-euro-filter.ts  # Temporal landmark smoothing
+│   ├── data/
+│   │   └── normativeData.ts    # UCD YBT normative values
+│   └── index.css
+├── index.html
 ├── vite.config.ts
-├── tsconfig.json
-└── README.md
+└── package.json
 ```
 
----
+## Normative data citation
 
-## Notes
+UCD YBT Dataset — P. Grant et al., University College Dublin.
+407 subjects, 7,262 trials. http://mlg.ucd.ie/ybt/
 
-- The pose model file is included in `public/models/` so the app works offline
-  once loaded.
-- All processing happens in the browser. Your video files never leave your device.
-- For research use only. Not for clinical diagnosis.
+## Disclaimer
+
+For research and educational use.
